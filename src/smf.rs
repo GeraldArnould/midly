@@ -156,6 +156,31 @@ impl<'a> Smf<'a> {
     }
 }
 
+/// Represents a style file (SFF1 or SFF2) which is an extension of a SMF file with optional sections.
+///
+/// A SFF file contains:
+/// - a mandatory midi section (SMF);
+/// - an optional CASM section;
+/// - an optional One Touch Settings (OTS) section;
+/// - an optional Music Finder (MDB) section;
+/// - an optional MH section;
+pub struct Sff<'a> {
+    pub midi: Smf<'a>,
+    // TODO: replace the following fields with proper types once the section are implemented.
+    pub casm: Option<&'a [u8]>,
+    pub ots: Option<&'a [u8]>,
+    pub mdb: Option<&'a [u8]>,
+    pub mh: Option<&'a [u8]>,
+}
+
+impl<'a> Sff<'a> {
+
+    pub fn parse(raw: &'a [u8]) -> Result<Sff> {
+        let midi = Smf::parse(raw)?;
+        Ok(Sff { midi, casm: None, ots: None, mdb: None, mh: None })
+    }
+}
+
 /// A track, represented as a `Vec` of events along with their originating bytes.
 ///
 /// This type alias is only available with the `alloc` feature enabled.
@@ -270,6 +295,7 @@ pub fn parse(raw: &[u8]) -> Result<(Header, TrackIter)> {
         Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid midi header"))? {
             Chunk::Header(header, track_count) => Ok((header, track_count)),
             Chunk::Track(_) => Err(err_invalid!("expected header, found track")),
+            _ => Err(err_invalid!("unknown header")),
         },
         None => Err(err_invalid!("no midi header chunk")),
     }?;
@@ -434,6 +460,45 @@ impl<'a> Iterator for ChunkIter<'a> {
 enum Chunk<'a> {
     Header(Header, u16),
     Track(&'a [u8]),
+    /// Chunks found in the CASM section of a style file
+    // b"CASM"
+    Casm(&'a [u8]),
+    // b"CSEG"
+    Cseg(&'a [u8]),
+    // b"Sdec"
+    Sdec(&'a [u8]),
+    // b"Ctab"
+    Ctab1(&'a [u8]),
+    // b"Ctb2"
+    Ctab2(&'a [u8]),
+    // b"Cntt"
+    Cntt(&'a [u8]),
+    /// Chunks found in an OTS section of a style file
+    ///
+    /// Empty OTS sections may be found in some style files, in which case its length is set to 0
+    /// No empty OTS section should be written when creating a new style file.
+    /// The OTS data section is a list of Tracks (with the same header as the Midi tracks).
+    // b"OTSc"
+    Ots(&'a [u8]),
+    /// Chunks found in the Music Finder section of a style file
+    // b"FNRc"
+    Mdb(&'a [u8]),
+    // b"FNRP"
+    Record(&'a [u8]),
+    // b"Mnam"
+    SongTitleData(&'a [u8]),
+    // b"Gnam"
+    GenreTitleData(&'a [u8]),
+    // b"Kwd1"
+    Keyword1(&'a [u8]),
+    // b"Kwd2"
+    Keyword2(&'a [u8]),
+    /// Chunks found in the MH section of a style file
+    // b"MHhd"
+    Mh(&'a [u8]),
+    /// Track found in the MH section
+    // b"MHtr"
+    MhTrack(&'a [u8]),
 }
 impl<'a> Chunk<'a> {
     /// Should be called with a byte slice at least as large as the chunk (ideally until EOF).
@@ -467,6 +532,52 @@ impl<'a> Chunk<'a> {
                 b"MTrk" => {
                     break Some(Chunk::Track(chunkdata));
                 }
+                b"CASM" => {
+                    break Some(Chunk::Casm(chunkdata));
+                }
+                b"CSEG" => {
+					break Some(Chunk::Cseg(chunkdata));
+				}
+                b"Sdec" => {
+					break Some(Chunk::Sdec(chunkdata));
+				}
+                b"Ctab" => {
+					break Some(Chunk::Ctab1(chunkdata));
+				}
+                b"Ctb2" => {
+					break Some(Chunk::Ctab2(chunkdata));
+				}
+                b"Cntt" => {
+					break Some(Chunk::Cntt(chunkdata));
+				}
+                b"OTSc" => {
+					break Some(Chunk::Ots(chunkdata));
+				}
+                b"FNRc" => {
+					break Some(Chunk::Mdb(chunkdata));
+				}
+                b"FNRP" => {
+					break Some(Chunk::Record(chunkdata));
+				}
+                b"Mnam" => {
+					break Some(Chunk::SongTitleData(chunkdata));
+				}
+                b"Gnam" => {
+					break Some(Chunk::GenreTitleData(chunkdata));
+				}
+                b"Kwd1" => {
+					break Some(Chunk::Keyword1(chunkdata));
+				}
+                b"Kwd2" => {
+					break Some(Chunk::Keyword2(chunkdata));
+				}
+                b"MHhd" => {
+					break Some(Chunk::Mh(chunkdata));
+				}
+                b"MHtr" => {
+					break Some(Chunk::MhTrack(chunkdata));
+				}
+                // FIXME: add remaining chunks types
                 //Unknown chunk, just ignore and read the next one
                 _ => (),
             }
@@ -561,6 +672,32 @@ impl<'a> Chunk<'a> {
         let len = u32::try_from(len)
             .map_err(|_| W::invalid_input("midi chunk size exceeds 32 bit range"))?;
         Ok(len.to_be_bytes())
+    }
+}
+
+/// Allows printing the chunk Id in a user friendly format
+impl<'a> fmt::Display for Chunk<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let out = match self {
+            Chunk::Header(..) => "Header",
+            Chunk::Track(..) => "Track",
+            Chunk::Casm(..) => "Casm",
+            Chunk::Cseg(..) => "Cseg",
+            Chunk::Sdec(..) => "Sdec",
+            Chunk::Ctab1(..) => "Ctab1",
+            Chunk::Ctab2(..) => "Ctab2",
+            Chunk::Cntt(..) => "Cntt",
+            Chunk::Ots(..) => "Ots",
+            Chunk::Mdb(..) => "Mdb",
+            Chunk::Record(..) => "Record",
+            Chunk::SongTitleData(..) => "SongTitleData",
+            Chunk::GenreTitleData(..) => "GenreTitleData",
+            Chunk::Keyword1(..) => "Keyword1",
+            Chunk::Keyword2(..) => "Keyword2",
+            Chunk::Mh(..) => "Mh",
+            Chunk::MhTrack(..) => "MhTrack",
+        };
+        write!(f, "{} chunk", out)
     }
 }
 
@@ -691,6 +828,14 @@ impl<'a> Iterator for TrackIter<'a> {
                             break Some(Err(err_malformed!("found duplicate header").into()));
                         } else {
                             //Ignore duplicate header
+                        }
+                    }
+                    // Other chunks
+                    Ok(..) => {
+                        if cfg!(feature = "strict") {
+                            break Some(Err(err_malformed!("chunk type not allowed in a track").into()));
+                        } else {
+                            //Ignore wrong chunk type
                         }
                     }
                     //Failed to read chunk
