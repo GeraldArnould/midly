@@ -217,19 +217,23 @@ mod primitive;
 mod riff;
 mod smf;
 pub mod stream;
+mod casm;
+mod ots;
+mod mdb;
+mod mh;
 
 #[cfg(feature = "std")]
 pub use crate::smf::write_std;
 #[cfg(feature = "alloc")]
 pub use crate::{
     arena::Arena,
-    smf::{BytemappedTrack, Smf, SmfBytemap, Track},
+    smf::{BytemappedTrack, Smf, SmfBytemap, Track, Sff},
 };
 pub use crate::{
     error::{Error, ErrorKind, Result},
     event::{MetaMessage, MidiMessage, PitchBend, TrackEvent, TrackEventKind},
     primitive::{Format, Fps, SmpteTime, Timing},
-    smf::{parse, write, EventBytemapIter, EventIter, Header, TrackIter},
+    smf::{parse, write, parse_style, EventBytemapIter, EventIter, Header, TrackIter},
 };
 
 /// Exotically-sized integers used by the MIDI standard.
