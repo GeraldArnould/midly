@@ -5,6 +5,10 @@ use crate::{
     prelude::*,
     primitive::{Format, Timing},
     riff,
+    casm::Casm,
+    ots::Ots,
+    mdb::Mdb,
+    mh::Mh,
 };
 
 /// How many events per byte to estimate when allocating memory for events while parsing.
@@ -156,31 +160,6 @@ impl<'a> Smf<'a> {
     }
 }
 
-/// Represents a style file (SFF1 or SFF2) which is an extension of a SMF file with optional sections.
-///
-/// A SFF file contains:
-/// - a mandatory midi section (SMF);
-/// - an optional CASM section;
-/// - an optional One Touch Settings (OTS) section;
-/// - an optional Music Finder (MDB) section;
-/// - an optional MH section;
-pub struct Sff<'a> {
-    pub midi: Smf<'a>,
-    // TODO: replace the following fields with proper types once the section are implemented.
-    pub casm: Option<&'a [u8]>,
-    pub ots: Option<&'a [u8]>,
-    pub mdb: Option<&'a [u8]>,
-    pub mh: Option<&'a [u8]>,
-}
-
-impl<'a> Sff<'a> {
-
-    pub fn parse(raw: &'a [u8]) -> Result<Sff> {
-        let midi = Smf::parse(raw)?;
-        Ok(Sff { midi, casm: None, ots: None, mdb: None, mh: None })
-    }
-}
-
 /// A track, represented as a `Vec` of events along with their originating bytes.
 ///
 /// This type alias is only available with the `alloc` feature enabled.
@@ -263,6 +242,38 @@ impl<'a> SmfBytemap<'a> {
     }
 }
 
+/// Represents a style file (SFF1 or SFF2) which is an extension of a SMF file with optional sections.
+///
+/// A SFF file contains:
+/// 1. a mandatory midi section (SMF);
+/// 2. an optional CASM section;
+/// 3. an optional One Touch Settings (OTS) section;
+/// 4. an optional Music Finder (MDB) section;
+/// 5. an optional MH section;
+/// This is the recommended order for the sections, but some files may present the optional sections in a
+/// different order.
+#[cfg(feature = "alloc")]
+pub struct Sff<'a> {
+    pub header: Header,
+    pub tracks: Vec<Track<'a>>,
+    pub casm: Option<Casm<'a>>,
+    pub ots: Option<Ots<'a>>,
+    pub mdb: Option<Mdb<'a>>,
+    pub mh: Option<Mh<'a>>,
+}
+
+#[cfg(feature = "alloc")]
+impl<'a> Sff<'a> {
+    pub fn parse(raw: &'a [u8]) -> Result<Sff> {
+        let (header, tracks, casm, ots, mdb, mh) = parse_style(raw)?;
+        // Validate the Midi chunks
+        let track_count_hint = tracks.track_count_hint;
+        let tracks = tracks.collect_tracks()?;
+        validate_smf(&header, track_count_hint, tracks.len())?;
+        Ok(Sff { header, tracks, casm, ots, mdb, mh })
+    }
+}
+
 #[cfg(feature = "alloc")]
 fn validate_smf(header: &Header, track_count_hint: u16, track_count: usize) -> Result<()> {
     if cfg!(feature = "strict") {
@@ -301,6 +312,37 @@ pub fn parse(raw: &[u8]) -> Result<(Header, TrackIter)> {
     }?;
     let tracks = chunks.as_tracks(track_count);
     Ok((header, tracks))
+}
+
+/// Parse a raw STYLE file, yielding is SMF component and any optional data part.
+///
+/// The Midi data is parsed as a Header chunk and a track event iterator.
+/// All the Yamaha style chunks are provided as [`Option`].
+/// Oldest SFF1 style files are converted to the new SFF2 structure. This conversion is reversible.
+/// However SFF2 styles cannot be converted to SFF1 without loss of information.
+pub fn parse_style(raw: &[u8]) -> Result<(Header, TrackIter, Option<Casm>, Option<Ots>, Option<Mdb>, Option<Mh>)> {
+    let raw = match raw.get(..4) {
+      Some(b"MThd") => raw,
+        _ => bail!(err_invalid!("not a style file")),
+    };
+    let mut chunks = ChunkIter::new(raw);
+    // First chunks should be: 1) Midi header chunk, 2) Tracks chunk
+    let (header, track_count) = match chunks.next() {
+        Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid midi header"))? {
+            Chunk::Header(header, track_count ) => Ok((header, track_count)),
+            _ => Err(err_invalid!("expected midi header, found another chunk type")),
+        },
+        None => Err(err_invalid!("no midi header chunk")),
+    }?;
+    // We need one iterator for each section of the style file.
+    // We are just cloning the pointer, so this operation should be cheap.
+    let casm = Casm::parse(chunks.clone())?;
+    let ots = Ots::parse(chunks.clone())?;
+    let mdb = Mdb::parse(chunks.clone())?;
+    let mh = Mh::parse(chunks.clone())?;
+    let tracks = chunks.as_tracks(track_count);
+
+    Ok((header, tracks, casm, ots, mdb, mh))
 }
 
 /// Encode and write a generic MIDI file into the given generic writer.
@@ -419,13 +461,13 @@ where
 }
 
 #[derive(Clone, Debug)]
-struct ChunkIter<'a> {
+pub(crate) struct ChunkIter<'a> {
     /// Starts at the current index, ends at EOF.
     raw: &'a [u8],
 }
 impl<'a> ChunkIter<'a> {
     #[inline]
-    fn new(raw: &'a [u8]) -> ChunkIter {
+    pub (crate) fn new(raw: &'a [u8]) -> ChunkIter {
         ChunkIter { raw }
     }
 
@@ -457,7 +499,7 @@ impl<'a> Iterator for ChunkIter<'a> {
 }
 
 #[derive(Copy, Clone, Debug)]
-enum Chunk<'a> {
+pub(crate) enum Chunk<'a> {
     Header(Header, u16),
     Track(&'a [u8]),
     /// Chunks found in the CASM section of a style file
@@ -520,7 +562,7 @@ impl<'a> Chunk<'a> {
                         bail!(err_malformed!("reached eof before chunk ended"));
                     } else {
                         //Just use the remainder of the file
-                        mem::replace(raw, &[])
+                        mem::take(raw)
                     }
                 }
             };
@@ -830,14 +872,8 @@ impl<'a> Iterator for TrackIter<'a> {
                             //Ignore duplicate header
                         }
                     }
-                    // Other chunks
-                    Ok(..) => {
-                        if cfg!(feature = "strict") {
-                            break Some(Err(err_malformed!("chunk type not allowed in a track").into()));
-                        } else {
-                            //Ignore wrong chunk type
-                        }
-                    }
+                    // Other chunks. We are after the tracks, into the Style chunks.
+                    Ok(..) => break None,
                     //Failed to read chunk
                     Err(err) => {
                         if cfg!(feature = "strict") {
