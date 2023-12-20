@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::smf::{Chunk, ChunkIter};
 
 #[derive(Debug)]
-pub(crate) struct Mdb<'a>(pub(crate) RecordIter<'a>);
+pub struct Mdb<'a>(pub(crate) RecordIter<'a>);
 
 impl<'a> Mdb<'a> {
     // get the first MDB section from a ChunkIter, additional ones are ignored.
@@ -82,7 +82,7 @@ impl Record {
                     Ok(_) => None,
                     Err(_) => None,
                 },
-                Err(_) => bail!(err_malformed!("failed to read chunk")),
+                Err(_) => Err(err_malformed!("failed to read chunk"))?,
                 _ => (),
             }
         };

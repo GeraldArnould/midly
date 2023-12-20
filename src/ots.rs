@@ -2,7 +2,7 @@ use crate::prelude::*;
 use crate::smf::{Chunk, ChunkIter};
 
 #[derive(Debug)]
-pub(crate) struct Ots<'a>(&'a [u8]);
+pub struct Ots<'a>(&'a [u8]);
 
 impl<'a> Ots<'a> {
     // get the first OTS section from a ChunkIter, additional ones are ignored.
@@ -10,7 +10,7 @@ impl<'a> Ots<'a> {
         let mut ots_iter = chunk_iter
             .filter(|c| matches!(c, Ok(Chunk::Ots(..))));
         let ots = match ots_iter.next() {
-            Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid midi header"))? {
+            Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid OTS header"))? {
                 Chunk::Ots(data) => Ok(data),
                 _ => Err(err_invalid!("expected OTS found another type of chunk")),
             },
