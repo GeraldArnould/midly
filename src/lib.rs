@@ -218,6 +218,7 @@ mod riff;
 mod smf;
 pub mod stream;
 mod casm;
+mod ctab;
 mod ots;
 mod mdb;
 mod mh;

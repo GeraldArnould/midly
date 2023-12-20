@@ -31,6 +31,36 @@ macro_rules! test {
     }};
 }
 
+/// Open and read the content of a Style file.
+macro_rules! open_style {
+    {$name:ident : $file:expr} => {
+        let $name = fs::read(AsRef::<Path>::as_ref("test-asset").join($file)).unwrap();
+    };
+    {$name:ident : [$parse:ident] $file:expr} => {
+        let $name = match $parse::Sff::parse(&$file[..]) {
+            Ok(sff) => sff,
+            Err(err) => {
+                eprintln!("failed to parse test file: {:?}", err);
+                panic!()
+            },
+        };
+    };
+}
+
+/// Macro for parsing a Style file.
+macro_rules! test_style {
+    {$file:expr => $parse_method:ident} => {{
+        let counts = time(&$file.to_string(), ||->Vec<_> {
+            open_style!{file: $file};
+            open_style!{sff: [$parse_method] file};
+            sff.tracks.into_iter().map(|track| $parse_method::len(&file[..], track)).collect()
+        });
+        for (i,count) in counts.iter().enumerate() {
+            println!("track {} has {} events", i, count);
+        }
+    }};
+}
+
 #[cfg(not(feature = "alloc"))]
 impl crate::io::Write for Vec<u8> {
     type Error = &'static str;
@@ -144,6 +174,38 @@ mod parse_lazy {
         pub fn parse(raw: &[u8]) -> MidlyResult<Smf> {
             let (header, tracks) = crate::parse(raw)?;
             Ok(Smf { header, tracks })
+        }
+    }
+    pub fn len(_raw: &[u8], track: MidlyResult<EventIter>) -> usize {
+        match track {
+            Ok(track) => track.count(),
+            Err(err) => panic!("failed to parse track: {}", err),
+        }
+    }
+}
+
+mod parse_lazy_style {
+    use super::*;
+    pub struct Sff<'a> {
+        pub header: crate::Header,
+        pub tracks: crate::TrackIter<'a>,
+        pub casm: Option<crate::casm::Casm<'a>>,
+        pub ots: Option<crate::ots::Ots<'a>>,
+        pub mdb: Option<crate::mdb::Mdb<'a>>,
+        pub mh: Option<crate::mh::Mh<'a>>,
+    }
+    impl Sff<'_> {
+        pub fn parse(raw: &[u8]) -> MidlyResult<Sff> {
+            let (header, tracks, casm, ots, mdb, mh) = crate::parse_style(raw)?;
+            let music_finder = mdb.unwrap().0;
+            let cseg_iter = casm.unwrap().0;
+            for cseg in cseg_iter {
+                println!("cseg: {:?}", cseg.unwrap());
+            }
+            for record in music_finder {
+                println!("mdb: {:?}", record.unwrap());
+            }
+            Ok(Sff { header, tracks, casm: None, ots, mdb: None, mh })
         }
     }
     pub fn len(_raw: &[u8], track: MidlyResult<EventIter>) -> usize {
@@ -498,6 +560,38 @@ macro_rules! def_tests {
     )*}
 }
 
+macro_rules! def_tests_style {
+    ($(
+        $(#[$attr:meta])*
+        fn $testname:ident() { $filename:expr }
+    )*) => {$(
+        mod $testname {
+            use super::*;
+
+            $(#[$attr])*
+            fn parse_lazy_style() {
+                test_style!($filename => parse_lazy_style);
+            }
+            // $(#[$attr])*
+            // fn parse() {
+            //     test!($filename => parse_collect);
+            // }
+            // $(#[$attr])*
+            // fn parse_bytemap() {
+            //     test!($filename => parse_bytemap);
+            // }
+            // $(#[$attr])*
+            // fn live_api() {
+            //     test_live_api($filename);
+            // }
+            // $(#[$attr])*
+            // fn rewrite() {
+            //     test_rewrite($filename);
+            // }
+        }
+    )*}
+}
+
 /// Test the MIDI parser on several files.
 mod parse {
     use super::*;
@@ -521,6 +615,14 @@ mod parse {
 
         #[test]
         fn sysex() {"SysExTest.mid"}
+    }
+
+    def_tests_style! {
+        #[test]
+        fn sff1() {"sff1.prs"}
+
+        #[test]
+        fn sff2() {"sff2.prs"}
     }
 
     #[test]
