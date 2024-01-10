@@ -54,7 +54,7 @@ impl Record {
         let lower = u8::read(&mut value)?;
 
         // The rest of the data is chunks
-        let mut chunk_iter = ChunkIter::new(value);
+        let chunk_iter = ChunkIter::new(value);
         // Chunks should be in order Song Title, Genre Name, Keyword1, Keyword2
         // We'll just process the iterator and get values as they come to deal with
         // malformed files.
@@ -62,7 +62,7 @@ impl Record {
         let mut genre = String::default();
         let mut keyword1: Option<String> = None;
         let mut keyword2: Option<String> = None;
-        while let Some(chunk) = chunk_iter.next() {
+        for chunk in chunk_iter {
             match chunk {
                 Ok(Chunk::SongTitleData(t)) => title = match std::str::from_utf8(t) {
                     Ok(val) => val.to_string(),
