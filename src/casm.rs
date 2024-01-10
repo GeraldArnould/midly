@@ -24,12 +24,12 @@ impl<'a> Casm<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct Cseg {
+pub(crate) struct Cseg<'a> {
     style_parts: Vec<StylePart>,
-    ctab: Vec<Ctab>,
+    ctab: Vec<Ctab<'a>>,
 }
 
-impl Cseg {
+impl<'a> Cseg<'a> {
     fn read(chunk: Chunk) -> Result<Cseg> {
         let value = match chunk {
             Chunk::Cseg(v) => v,
@@ -37,10 +37,10 @@ impl Cseg {
         };
 
         // Following sections are chunks
-        let mut chunk_iter = ChunkIter::new(value);
+        let chunk_iter = ChunkIter::new(value);
         let mut style_parts: Vec<StylePart> = vec![];
         let mut ctab: Vec<Ctab> = vec![];
-        while let Some(chunk) = chunk_iter.next() {
+        for chunk in chunk_iter {
             match chunk {
                 Ok(Chunk::Sdec(data)) => {
                     // Style parts are separated by ',' (0x2C)
@@ -51,12 +51,19 @@ impl Cseg {
                             Err(_) => Err(err_malformed!("could not read style part value"))?,
                         };
                     }
-                },
-                Ok(Chunk::Ctab1(data)) => {},
-                Ok(Chunk::Ctab2(data)) => {},
-                Ok(Chunk::Cntt(data)) => {},
-                Ok(c) => Err(err_invalid!("found a chunk not belonging in a CASM section"))?,
-                Err(err) => Err(err_invalid!("could not read chunk"))?,
+                }
+                Ok(c) if matches!(c, Chunk::Ctab1(..)) => {
+                    let maybe_ctab = Ctab::read(c)?;
+                    ctab.push(maybe_ctab);
+                }
+                Ok(c) if matches!(c, Chunk::Ctab2(..)) => {
+                    let maybe_ctab = Ctab::read(c)?;
+                    ctab.push(maybe_ctab);
+                }
+                // TODO: change when CNTT is implemented
+                Ok(Chunk::Cntt(_)) => {},
+                Ok(_) => Err(err_invalid!("found a chunk not belonging in a CASM section"))?,
+                Err(_) => Err(err_invalid!("could not read chunk"))?,
             }
         };
         Ok(Cseg{style_parts, ctab})
@@ -68,7 +75,7 @@ pub(crate) struct CsegIter<'a> {
 }
 
 impl<'a> Iterator for CsegIter<'a> {
-    type Item = Result<Cseg>;
+    type Item = Result<Cseg<'a>>;
     fn next(&mut self) -> Option<Self::Item> {
         let chunk = self.inner.next()?;
         match chunk {
