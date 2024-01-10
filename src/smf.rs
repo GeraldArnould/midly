@@ -254,16 +254,23 @@ impl<'a> SmfBytemap<'a> {
 /// different order.
 #[cfg(feature = "alloc")]
 pub struct Sff<'a> {
+    /// Header of the Midi section
     pub header: Header,
+    /// Tracks of the Midi section
     pub tracks: Vec<Track<'a>>,
+    /// The CASM section holds metadata related to the tracks in the Midi section
     pub casm: Option<Casm<'a>>,
+    /// One Touch Settings section
     pub ots: Option<Ots<'a>>,
+    /// Music Finder section
     pub mdb: Option<Mdb<'a>>,
+    /// MH section with unknown purpose
     pub mh: Option<Mh<'a>>,
 }
 
 #[cfg(feature = "alloc")]
 impl<'a> Sff<'a> {
+    /// Parse raw bytes and returns a Style structure if the parsing was successful
     pub fn parse(raw: &'a [u8]) -> Result<Sff> {
         let (header, tracks, casm, ots, mdb, mh) = parse_style(raw)?;
         // Validate the Midi chunks
