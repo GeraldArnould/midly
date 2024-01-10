@@ -327,6 +327,7 @@ pub fn parse(raw: &[u8]) -> Result<(Header, TrackIter)> {
 /// All the Yamaha style chunks are provided as [`Option`].
 /// Oldest SFF1 style files are converted to the new SFF2 structure. This conversion is reversible.
 /// However SFF2 styles cannot be converted to SFF1 without loss of information.
+#[allow(clippy::type_complexity)]
 pub fn parse_style(raw: &[u8]) -> Result<(Header, TrackIter, Option<Casm>, Option<Ots>, Option<Mdb>, Option<Mh>)> {
     let raw = match raw.get(..4) {
       Some(b"MThd") => raw,
