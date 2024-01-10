@@ -1,14 +1,14 @@
 //! Specific to the SMF packaging of MIDI streams.
 
 use crate::{
+    casm::Casm,
     event::TrackEvent,
+    mdb::Mdb,
+    mh::Mh,
+    ots::Ots,
     prelude::*,
     primitive::{Format, Timing},
     riff,
-    casm::Casm,
-    ots::Ots,
-    mdb::Mdb,
-    mh::Mh,
 };
 
 /// How many events per byte to estimate when allocating memory for events while parsing.
@@ -277,7 +277,14 @@ impl<'a> Sff<'a> {
         let track_count_hint = tracks.track_count_hint;
         let tracks = tracks.collect_tracks()?;
         validate_smf(&header, track_count_hint, tracks.len())?;
-        Ok(Sff { header, tracks, casm, ots, mdb, mh })
+        Ok(Sff {
+            header,
+            tracks,
+            casm,
+            ots,
+            mdb,
+            mh,
+        })
     }
 }
 
@@ -328,17 +335,28 @@ pub fn parse(raw: &[u8]) -> Result<(Header, TrackIter)> {
 /// Oldest SFF1 style files are converted to the new SFF2 structure. This conversion is reversible.
 /// However SFF2 styles cannot be converted to SFF1 without loss of information.
 #[allow(clippy::type_complexity)]
-pub fn parse_style(raw: &[u8]) -> Result<(Header, TrackIter, Option<Casm>, Option<Ots>, Option<Mdb>, Option<Mh>)> {
+pub fn parse_style(
+    raw: &[u8],
+) -> Result<(
+    Header,
+    TrackIter,
+    Option<Casm>,
+    Option<Ots>,
+    Option<Mdb>,
+    Option<Mh>,
+)> {
     let raw = match raw.get(..4) {
-      Some(b"MThd") => raw,
+        Some(b"MThd") => raw,
         _ => bail!(err_invalid!("not a style file")),
     };
     let mut chunks = ChunkIter::new(raw);
     // First chunks should be: 1) Midi header chunk, 2) Tracks chunk
     let (header, track_count) = match chunks.next() {
         Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid midi header"))? {
-            Chunk::Header(header, track_count ) => Ok((header, track_count)),
-            _ => Err(err_invalid!("expected midi header, found another chunk type")),
+            Chunk::Header(header, track_count) => Ok((header, track_count)),
+            _ => Err(err_invalid!(
+                "expected midi header, found another chunk type"
+            )),
         },
         None => Err(err_invalid!("no midi header chunk")),
     }?;
@@ -475,7 +493,7 @@ pub(crate) struct ChunkIter<'a> {
 }
 impl<'a> ChunkIter<'a> {
     #[inline]
-    pub (crate) fn new(raw: &'a [u8]) -> ChunkIter {
+    pub(crate) fn new(raw: &'a [u8]) -> ChunkIter {
         ChunkIter { raw }
     }
 
@@ -586,47 +604,47 @@ impl<'a> Chunk<'a> {
                     break Some(Chunk::Casm(chunkdata));
                 }
                 b"CSEG" => {
-					break Some(Chunk::Cseg(chunkdata));
-				}
+                    break Some(Chunk::Cseg(chunkdata));
+                }
                 b"Sdec" => {
-					break Some(Chunk::Sdec(chunkdata));
-				}
+                    break Some(Chunk::Sdec(chunkdata));
+                }
                 b"Ctab" => {
-					break Some(Chunk::Ctab1(chunkdata));
-				}
+                    break Some(Chunk::Ctab1(chunkdata));
+                }
                 b"Ctb2" => {
-					break Some(Chunk::Ctab2(chunkdata));
-				}
+                    break Some(Chunk::Ctab2(chunkdata));
+                }
                 b"Cntt" => {
-					break Some(Chunk::Cntt(chunkdata));
-				}
+                    break Some(Chunk::Cntt(chunkdata));
+                }
                 b"OTSc" => {
-					break Some(Chunk::Ots(chunkdata));
-				}
+                    break Some(Chunk::Ots(chunkdata));
+                }
                 b"FNRc" => {
-					break Some(Chunk::Mdb(chunkdata));
-				}
+                    break Some(Chunk::Mdb(chunkdata));
+                }
                 b"FNRP" => {
-					break Some(Chunk::Record(chunkdata));
-				}
+                    break Some(Chunk::Record(chunkdata));
+                }
                 b"Mnam" => {
-					break Some(Chunk::SongTitleData(chunkdata));
-				}
+                    break Some(Chunk::SongTitleData(chunkdata));
+                }
                 b"Gnam" => {
-					break Some(Chunk::GenreTitleData(chunkdata));
-				}
+                    break Some(Chunk::GenreTitleData(chunkdata));
+                }
                 b"Kwd1" => {
-					break Some(Chunk::Keyword1(chunkdata));
-				}
+                    break Some(Chunk::Keyword1(chunkdata));
+                }
                 b"Kwd2" => {
-					break Some(Chunk::Keyword2(chunkdata));
-				}
+                    break Some(Chunk::Keyword2(chunkdata));
+                }
                 b"MHhd" => {
-					break Some(Chunk::Mh(chunkdata));
-				}
+                    break Some(Chunk::Mh(chunkdata));
+                }
                 b"MHtr" => {
-					break Some(Chunk::MhTrack(chunkdata));
-				}
+                    break Some(Chunk::MhTrack(chunkdata));
+                }
                 // FIXME: add remaining chunks types
                 //Unknown chunk, just ignore and read the next one
                 _ => (),

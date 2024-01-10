@@ -1,15 +1,14 @@
 use crate::ctab::Ctab;
-use crate::Error;
 use crate::prelude::*;
 use crate::smf::{Chunk, ChunkIter};
+use crate::Error;
 
 pub struct Casm<'a>(pub(crate) CsegIter<'a>);
 
 impl<'a> Casm<'a> {
     // get the first CASM section from a ChunkIter, additional ones are ignored.
     pub(crate) fn parse(chunk_iter: ChunkIter<'a>) -> Result<Option<Self>> {
-        let mut casm_iter = chunk_iter
-            .filter(|c| matches!(c, Ok(Chunk::Casm(..))));
+        let mut casm_iter = chunk_iter.filter(|c| matches!(c, Ok(Chunk::Casm(..))));
         // Take only the first CASM section found if any
         let casm = match casm_iter.next() {
             Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid CASM header"))? {
@@ -19,7 +18,9 @@ impl<'a> Casm<'a> {
             None => return Ok(None),
         }?;
 
-        Ok(Some(Casm(CsegIter { inner: ChunkIter::new(casm)})))
+        Ok(Some(Casm(CsegIter {
+            inner: ChunkIter::new(casm),
+        })))
     }
 }
 
@@ -61,12 +62,14 @@ impl<'a> Cseg<'a> {
                     ctab.push(maybe_ctab);
                 }
                 // TODO: change when CNTT is implemented
-                Ok(Chunk::Cntt(_)) => {},
-                Ok(_) => Err(err_invalid!("found a chunk not belonging in a CASM section"))?,
+                Ok(Chunk::Cntt(_)) => {}
+                Ok(_) => Err(err_invalid!(
+                    "found a chunk not belonging in a CASM section"
+                ))?,
                 Err(_) => Err(err_invalid!("could not read chunk"))?,
             }
-        };
-        Ok(Cseg{style_parts, ctab})
+        }
+        Ok(Cseg { style_parts, ctab })
     }
 }
 
@@ -81,19 +84,23 @@ impl<'a> Iterator for CsegIter<'a> {
         match chunk {
             Ok(c) if matches!(c, Chunk::Cseg(..)) => match Cseg::read(c) {
                 Ok(cseg) => Some(Ok(cseg)),
-                Err(err) => if cfg!(feature = "strict") {
-                    Some(Err(err).context(err_invalid!("invalid CSEG")))
-                } else {
-                    None
+                Err(err) => {
+                    if cfg!(feature = "strict") {
+                        Some(Err(err).context(err_invalid!("invalid CSEG")))
+                    } else {
+                        None
+                    }
                 }
             },
             // Wrong chunk type
             Ok(_) => None,
-            Err(err) => if cfg!(feature = "strict") {
-                Some(Err(err).context(err_malformed!("malformed CSEG")))
-            } else {
-                None
-            },
+            Err(err) => {
+                if cfg!(feature = "strict") {
+                    Some(Err(err).context(err_malformed!("malformed CSEG")))
+                } else {
+                    None
+                }
+            }
         }
     }
 }
