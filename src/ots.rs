@@ -1,8 +1,8 @@
-use crate::prelude::*;
+use crate::{prelude::*, TrackIter};
 use crate::smf::{Chunk, ChunkIter};
 
 #[derive(Debug)]
-pub struct Ots<'a>(&'a [u8]);
+pub struct Ots<'a>(pub TrackIter<'a>);
 
 impl<'a> Ots<'a> {
     // get the first OTS section from a ChunkIter, additional ones are ignored.
@@ -16,6 +16,8 @@ impl<'a> Ots<'a> {
             },
             None => return Ok(None),
         }?;
-        Ok(Some(Ots(ots)))
+
+        let tracks = TrackIter::new(ots);
+        Ok(Some(Ots(tracks)))
     }
 }
