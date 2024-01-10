@@ -7,8 +7,7 @@ pub struct Mdb<'a>(pub(crate) RecordIter<'a>);
 impl<'a> Mdb<'a> {
     // get the first MDB section from a ChunkIter, additional ones are ignored.
     pub(crate) fn parse(chunk_iter: ChunkIter<'a>) -> Result<Option<Mdb>> {
-        let mut mdb_iter = chunk_iter
-            .filter(|c| matches!(c, Ok(Chunk::Mdb(..))));
+        let mut mdb_iter = chunk_iter.filter(|c| matches!(c, Ok(Chunk::Mdb(..))));
         let mdb = match mdb_iter.next() {
             Some(maybe_chunk) => match maybe_chunk.context(err_invalid!("invalid MDB header"))? {
                 Chunk::Mdb(data) => Ok(data),
@@ -17,7 +16,7 @@ impl<'a> Mdb<'a> {
             None => return Ok(None),
         }?;
         let inner = ChunkIter::new(mdb);
-        Ok(Some(Mdb(RecordIter{ inner })))
+        Ok(Some(Mdb(RecordIter { inner })))
     }
 }
 
@@ -64,29 +63,44 @@ impl Record {
         let mut keyword2: Option<String> = None;
         for chunk in chunk_iter {
             match chunk {
-                Ok(Chunk::SongTitleData(t)) => title = match std::str::from_utf8(t) {
-                    Ok(val) => val.to_string(),
-                    Err(_) => String::default(),
-                },
-                Ok(Chunk::GenreTitleData(t)) => genre = match std::str::from_utf8(t) {
-                    Ok(val) => val.to_string(),
-                    Err(_) => String::default(),
-                },
-                Ok(Chunk::Keyword1(t)) => keyword1 = match std::str::from_utf8(t) {
-                    Ok(val) if !val.is_empty() => Some(val.to_string()),
-                    Ok(_) => None,
-                    Err(_) => None,
-                },
-                Ok(Chunk::Keyword2(t)) => keyword2 = match std::str::from_utf8(t) {
-                    Ok(val) if !val.is_empty() => Some(val.to_string()),
-                    Ok(_) => None,
-                    Err(_) => None,
-                },
+                Ok(Chunk::SongTitleData(t)) => {
+                    title = match std::str::from_utf8(t) {
+                        Ok(val) => val.to_string(),
+                        Err(_) => String::default(),
+                    }
+                }
+                Ok(Chunk::GenreTitleData(t)) => {
+                    genre = match std::str::from_utf8(t) {
+                        Ok(val) => val.to_string(),
+                        Err(_) => String::default(),
+                    }
+                }
+                Ok(Chunk::Keyword1(t)) => {
+                    keyword1 = match std::str::from_utf8(t) {
+                        Ok(val) if !val.is_empty() => Some(val.to_string()),
+                        Ok(_) => None,
+                        Err(_) => None,
+                    }
+                }
+                Ok(Chunk::Keyword2(t)) => {
+                    keyword2 = match std::str::from_utf8(t) {
+                        Ok(val) if !val.is_empty() => Some(val.to_string()),
+                        Ok(_) => None,
+                        Err(_) => None,
+                    }
+                }
                 Err(_) => Err(err_malformed!("failed to read chunk"))?,
                 _ => (),
             }
-        };
-        Ok(Record {tempo, signature: Signature {upper, lower}, title, genre, keyword1, keyword2})
+        }
+        Ok(Record {
+            tempo,
+            signature: Signature { upper, lower },
+            title,
+            genre,
+            keyword1,
+            keyword2,
+        })
     }
 }
 
@@ -98,23 +112,27 @@ pub(crate) struct RecordIter<'a> {
 impl<'a> Iterator for RecordIter<'a> {
     type Item = Result<Record>;
     fn next(&mut self) -> Option<Self::Item> {
-       let chunk = self.inner.next()?;
+        let chunk = self.inner.next()?;
         match chunk {
             Ok(c) if matches!(c, Chunk::Record(..)) => match Record::read(c) {
                 Ok(record) => Some(Ok(record)),
-                Err(err) => if cfg!(feature = "strict") {
-                    Some(Err(err).context(err_invalid!("invalid Record")))
-                } else {
-                    None
+                Err(err) => {
+                    if cfg!(feature = "strict") {
+                        Some(Err(err).context(err_invalid!("invalid Record")))
+                    } else {
+                        None
+                    }
                 }
             },
             // Wrong chunk type
             Ok(_) => None,
-            Err(err) => if cfg!(feature = "strict") {
-                Some(Err(err).context(err_malformed!("malformed Record")))
-            } else {
-                None
-            },
+            Err(err) => {
+                if cfg!(feature = "strict") {
+                    Some(Err(err).context(err_malformed!("malformed Record")))
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -127,5 +145,3 @@ pub(crate) struct Signature {
     /// note being counted
     lower: u8,
 }
-
-

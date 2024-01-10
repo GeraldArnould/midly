@@ -1,8 +1,8 @@
-use core::convert::TryInto;
-use std::collections::HashMap;
-use crate::Error;
 use crate::prelude::*;
 use crate::smf::Chunk;
+use crate::Error;
+use core::convert::TryInto;
+use std::collections::HashMap;
 
 // Size of the various sections found in a CTAB chunk
 const COMMON_SIZE: usize = 20;
@@ -74,8 +74,14 @@ impl Ctab<'_> {
     pub(crate) fn read(chunk: Chunk) -> Result<Ctab> {
         let version: Version;
         let mut value = match chunk {
-            Chunk::Ctab1(v) => { version = Version::Ctab1; v }
-            Chunk::Ctab2(v) => { version = Version::Ctab2; v },
+            Chunk::Ctab1(v) => {
+                version = Version::Ctab1;
+                v
+            }
+            Chunk::Ctab2(v) => {
+                version = Version::Ctab2;
+                v
+            }
             _ => bail!(err_invalid!("not a CTAB type chunk")),
         };
 
@@ -83,12 +89,14 @@ impl Ctab<'_> {
         let name = match value.split_checked(8) {
             Some(v) => match std::str::from_utf8(v) {
                 Ok(name) => name.trim().to_string(),
-                Err(_) => if cfg!(feature = "strict") {
-                    bail!(err_malformed!("not a valid string for name")); 
-                } else {
+                Err(_) => {
+                    if cfg!(feature = "strict") {
+                        bail!(err_malformed!("not a valid string for name"));
+                    } else {
                         String::default()
-                    },
-            }
+                    }
+                }
+            },
             None => bail!(err_invalid!("name field is not a string")),
         };
         let dest = u4::read(&mut value)?;
@@ -110,13 +118,14 @@ impl Ctab<'_> {
         let special;
         match version {
             Version::Ctab2 | Version::Guitar => {
-                range = ( u7::read(&mut value)?, u7::read(&mut value)?);
+                range = (u7::read(&mut value)?, u7::read(&mut value)?);
                 if let Some(data) = value.split_checked(TABLE_SIZE * 3) {
                     let low = Table::try_from((&data[..TABLE_SIZE], Version::Ctab2))?;
                     table.push(low);
                     let mid = Table::try_from((&data[TABLE_SIZE..TABLE_SIZE * 2], Version::Ctab2))?;
                     table.push(mid);
-                    let high = Table::try_from((&data[TABLE_SIZE * 2..TABLE_SIZE * 3], Version::Ctab2))?;
+                    let high =
+                        Table::try_from((&data[TABLE_SIZE * 2..TABLE_SIZE * 3], Version::Ctab2))?;
                     table.push(high);
                 } else {
                     bail!(err_malformed!("cannot construct transposition table"));
@@ -126,14 +135,14 @@ impl Ctab<'_> {
                 if special.is_none() && cfg!(feature = "strict") {
                     bail!(err_malformed!("missing special bytes at the end of CTABv2"));
                 }
-            },
+            }
             Version::Ctab1 => {
                 if let Some(data) = value.split_checked(TABLE_SIZE) {
                     table.push(Table::try_from((data, Version::Ctab1))?);
                 } else {
                     bail!(err_malformed!("cannot construct transposition table"));
                 }
-                
+
                 if u8::read(&mut value)? != 0x00 {
                     special = value.split_checked(CTAB1_SPECIAL_SIZE - 1);
                     if special.is_none() && cfg!(feature = "strict") {
@@ -145,8 +154,19 @@ impl Ctab<'_> {
             }
         }
 
-        Ok(Ctab { source, name, dest, editable, note_mute, chord_mute, source_chord,
-            source_chord_type, table, range, special })
+        Ok(Ctab {
+            source,
+            name,
+            dest,
+            editable,
+            note_mute,
+            chord_mute,
+            source_chord,
+            source_chord_type,
+            table,
+            range,
+            special,
+        })
     }
 
     fn read_note_mute(value: [u8; 2]) -> Result<HashMap<Key, bool>> {
@@ -169,8 +189,20 @@ impl Ctab<'_> {
         let cs = value[1] & 0b0000_0010 == 0;
         let c = value[1] & 0b0000_0001 == 0;
 
-        Ok(HashMap::from([(Key::B, b), (Key::Bb, bb), (Key::A, a), (Key::Gs, gs), (Key::G, g), (Key::Fs, fs),
-            (Key::F, f), (Key::E, e), (Key::Eb, eb), (Key::D, d), (Key::Cs, cs), (Key::C, c)]))
+        Ok(HashMap::from([
+            (Key::B, b),
+            (Key::Bb, bb),
+            (Key::A, a),
+            (Key::Gs, gs),
+            (Key::G, g),
+            (Key::Fs, fs),
+            (Key::F, f),
+            (Key::E, e),
+            (Key::Eb, eb),
+            (Key::D, d),
+            (Key::Cs, cs),
+            (Key::C, c),
+        ]))
     }
 
     /// Any chord type set to false here will mute the track when played.
@@ -227,19 +259,46 @@ impl Ctab<'_> {
         let mut chord_mute: HashMap<Chord, bool> = HashMap::with_capacity(CHORD_SIZE);
         let chords_order = [
             // byte 0 (First nibble is 0x0)
-            Chord::SpecialPercussion, Chord::SpecialAutostart, Chord::OnePlusTwoPlus5, Chord::Sus4,
+            Chord::SpecialPercussion,
+            Chord::SpecialAutostart,
+            Chord::OnePlusTwoPlus5,
+            Chord::Sus4,
             // byte 1
-            Chord::OnePlusFive, Chord::OnePlusEight, Chord::SevenAug, Chord::Maj7aug,
-            Chord::SevenS9, Chord::SevenB13, Chord::SevenB9, Chord::Seven13,
+            Chord::OnePlusFive,
+            Chord::OnePlusEight,
+            Chord::SevenAug,
+            Chord::Maj7aug,
+            Chord::SevenS9,
+            Chord::SevenB13,
+            Chord::SevenB9,
+            Chord::Seven13,
             // byte 2
-            Chord::SevenS11, Chord::Seven9, Chord::SevenB5, Chord::SevenSus4,
-            Chord::Seven, Chord::Dim7, Chord::Dim, Chord::MinMaj7_9,
+            Chord::SevenS11,
+            Chord::Seven9,
+            Chord::SevenB5,
+            Chord::SevenSus4,
+            Chord::Seven,
+            Chord::Dim7,
+            Chord::Dim,
+            Chord::MinMaj7_9,
             // byte 3
-            Chord::MinMaj7, Chord::Min7_11, Chord::Min7_9, Chord::Min9,
-            Chord::Min7b5, Chord::Min7, Chord::Min6, Chord::Min,
+            Chord::MinMaj7,
+            Chord::Min7_11,
+            Chord::Min7_9,
+            Chord::Min9,
+            Chord::Min7b5,
+            Chord::Min7,
+            Chord::Min6,
+            Chord::Min,
             // byte 4
-            Chord::Aug, Chord::Maj6_9, Chord::Maj7_9, Chord::Maj9,
-            Chord::Maj7s11, Chord::Maj7, Chord::Maj6, Chord::Maj,
+            Chord::Aug,
+            Chord::Maj6_9,
+            Chord::Maj7_9,
+            Chord::Maj9,
+            Chord::Maj7s11,
+            Chord::Maj7,
+            Chord::Maj6,
+            Chord::Maj,
         ];
         // The 4 MSB of the first byte are always 0.
         if value[0] > 0b1111 && cfg!(feature = "strict") {
@@ -284,23 +343,21 @@ impl TryFrom<u8> for Key {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
-        Ok(
-            match value {
-                0x00 => Self::C,
-                0x01 => Self::Cs,
-                0x02 => Self::D,
-                0x03 => Self::Eb,
-                0x04 => Self::E,
-                0x05 => Self::F,
-                0x06 => Self::Fs,
-                0x07 => Self::G,
-                0x08 => Self::Gs,
-                0x09 => Self::A,
-                0x0A => Self::Bb,
-                0x0B => Self::B,
-                _ => bail!(err_invalid!("invalid key value")),
-            }
-        )
+        Ok(match value {
+            0x00 => Self::C,
+            0x01 => Self::Cs,
+            0x02 => Self::D,
+            0x03 => Self::Eb,
+            0x04 => Self::E,
+            0x05 => Self::F,
+            0x06 => Self::Fs,
+            0x07 => Self::G,
+            0x08 => Self::Gs,
+            0x09 => Self::A,
+            0x0A => Self::Bb,
+            0x0B => Self::B,
+            _ => bail!(err_invalid!("invalid key value")),
+        })
     }
 }
 
@@ -354,50 +411,47 @@ impl TryFrom<u8> for Chord {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
-        Ok(
-            match value {
-                0x00 => Self::Maj,
-                0x01 => Self::Maj6,
-                0x02 => Self::Maj7,
-                0x03 => Self::Maj7s11,
-                0x04 => Self::Maj9,
-                0x05 => Self::Maj7_9,
-                0x06 => Self::Maj6_9,
-                0x07 => Self::Aug,
-                0x08 => Self::Min,
-                0x09 => Self::Min6,
-                0x0A => Self::Min7,
-                0x0B => Self::Min7b5,
-                0x0C => Self::Min9,
-                0x0D => Self::Min7_9,
-                0x0E => Self::Min7_11,
-                0x0F => Self::MinMaj7,
-                0x10 => Self::MinMaj7_9,
-                0x11 => Self::Dim,
-                0x12 => Self::Dim7,
-                0x13 => Self::Seven,
-                0x14 => Self::SevenSus4,
-                0x15 => Self::SevenB5,
-                0x16 => Self::Seven9,
-                0x17 => Self::SevenS11,
-                0x18 => Self::Seven13,
-                0x19 => Self::SevenB9,
-                0x1A => Self::SevenB13,
-                0x1B => Self::SevenS9,
-                0x1C => Self::Maj7aug,
-                0x1D => Self::SevenAug,
-                0x1E => Self::OnePlusEight,
-                0x1F => Self::OnePlusFive,
-                0x20 => Self::Sus4,
-                0x21 => Self::OnePlusTwoPlus5,
-                0x22 => Self::Cancel,
-                // Byte range 0x00..=0x22
-                _ => bail!(err_invalid!("unknown chord")),
-            }
-        )
+        Ok(match value {
+            0x00 => Self::Maj,
+            0x01 => Self::Maj6,
+            0x02 => Self::Maj7,
+            0x03 => Self::Maj7s11,
+            0x04 => Self::Maj9,
+            0x05 => Self::Maj7_9,
+            0x06 => Self::Maj6_9,
+            0x07 => Self::Aug,
+            0x08 => Self::Min,
+            0x09 => Self::Min6,
+            0x0A => Self::Min7,
+            0x0B => Self::Min7b5,
+            0x0C => Self::Min9,
+            0x0D => Self::Min7_9,
+            0x0E => Self::Min7_11,
+            0x0F => Self::MinMaj7,
+            0x10 => Self::MinMaj7_9,
+            0x11 => Self::Dim,
+            0x12 => Self::Dim7,
+            0x13 => Self::Seven,
+            0x14 => Self::SevenSus4,
+            0x15 => Self::SevenB5,
+            0x16 => Self::Seven9,
+            0x17 => Self::SevenS11,
+            0x18 => Self::Seven13,
+            0x19 => Self::SevenB9,
+            0x1A => Self::SevenB13,
+            0x1B => Self::SevenS9,
+            0x1C => Self::Maj7aug,
+            0x1D => Self::SevenAug,
+            0x1E => Self::OnePlusEight,
+            0x1F => Self::OnePlusFive,
+            0x20 => Self::Sus4,
+            0x21 => Self::OnePlusTwoPlus5,
+            0x22 => Self::Cancel,
+            // Byte range 0x00..=0x22
+            _ => bail!(err_invalid!("unknown chord")),
+        })
     }
 }
-
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum RetriggerRule {
@@ -413,17 +467,15 @@ impl TryFrom<u8> for RetriggerRule {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
-        Ok(
-            match value {
-                0x00 => Self::Stop,
-                0x01 => Self::PitchShift,
-                0x02 => Self::PitchShiftToRoot,
-                0x03 => Self::Retrigger,
-                0x04 => Self::RetriggerToRoot,
-                0x05 => Self::NoteGenerator,
-                _ => bail!(err_invalid!("unknown retrigger rule")),
-            }
-        )
+        Ok(match value {
+            0x00 => Self::Stop,
+            0x01 => Self::PitchShift,
+            0x02 => Self::PitchShiftToRoot,
+            0x03 => Self::Retrigger,
+            0x04 => Self::RetriggerToRoot,
+            0x05 => Self::NoteGenerator,
+            _ => bail!(err_invalid!("unknown retrigger rule")),
+        })
     }
 }
 
@@ -440,26 +492,24 @@ impl TryFrom<(u8, Version)> for TranspositionType {
 
     fn try_from(value: (u8, Version)) -> Result<Self> {
         let (value, version) = value;
-        Ok(
-            match value {
-                0x00 => Self::RootTransposition,
-                0x01 => Self::RootFixed,
-                0x02 => { 
-                    if version == Version::Ctab1 && cfg!(feature = "strict") {
-                        bail!(err_invalid!("Guitar transposition mode in SFFv1"));
-                    }
-                    Self::Guitar
-                },
-                _ => {
-                    if cfg!(feature = "strict") {
-                        bail!(err_invalid!("unknown transposition mode"));
-                    } else {
-                        // Return default transposition
-                        Self::default()
-                    }
-                },
+        Ok(match value {
+            0x00 => Self::RootTransposition,
+            0x01 => Self::RootFixed,
+            0x02 => {
+                if version == Version::Ctab1 && cfg!(feature = "strict") {
+                    bail!(err_invalid!("Guitar transposition mode in SFFv1"));
+                }
+                Self::Guitar
             }
-        )
+            _ => {
+                if cfg!(feature = "strict") {
+                    bail!(err_invalid!("unknown transposition mode"));
+                } else {
+                    // Return default transposition
+                    Self::default()
+                }
+            }
+        })
     }
 }
 
@@ -493,32 +543,34 @@ impl TryFrom<(u8, Version)> for TranspositionTable {
         let (value, version) = value;
         // ignore most significant bit (bass on)
         let value = value & 0b0111_1111;
-        Ok(
-            match value {
-                0x00 if version == Version::Guitar => Self::AllPurpose,
-                0x00 => Self::Bypass,
-                0x01 if version == Version::Guitar => Self::Stroke,
-                0x01 => Self::Melody,
-                0x02 if version == Version::Guitar => Self::Arpeggio,
-                0x02 => Self::Chord,
-                0x03 if version == Version::Ctab1 => Self::Bass,
-                0x03 => Self::MelodicMinor,
-                0x04 if version == Version::Ctab1 => Self::MelodicMinor,
-                0x04 => Self::MelodicMinor5th,
-                0x05 => Self::HarmonicMinor,
-                _e if version == Version::Ctab1 && cfg!(feature = "strict") => bail!(err_invalid!("transposition table not valid in SFFv1")),
-                0x06 => Self::HarmonicMinor5th,
-                0x07 => Self::NaturalMinor,
-                0x08 => Self::NaturalMinor5th,
-                0x09 => Self::Dorian,
-                0x0A => Self::Dorian5th,
-                _e => if cfg!(feature = "strict") {
-                    bail!(err_invalid!("unknown transposition table"));
-                    } else {
-                        Self::default()
-                    }
+        Ok(match value {
+            0x00 if version == Version::Guitar => Self::AllPurpose,
+            0x00 => Self::Bypass,
+            0x01 if version == Version::Guitar => Self::Stroke,
+            0x01 => Self::Melody,
+            0x02 if version == Version::Guitar => Self::Arpeggio,
+            0x02 => Self::Chord,
+            0x03 if version == Version::Ctab1 => Self::Bass,
+            0x03 => Self::MelodicMinor,
+            0x04 if version == Version::Ctab1 => Self::MelodicMinor,
+            0x04 => Self::MelodicMinor5th,
+            0x05 => Self::HarmonicMinor,
+            _e if version == Version::Ctab1 && cfg!(feature = "strict") => {
+                bail!(err_invalid!("transposition table not valid in SFFv1"))
             }
-        )
+            0x06 => Self::HarmonicMinor5th,
+            0x07 => Self::NaturalMinor,
+            0x08 => Self::NaturalMinor5th,
+            0x09 => Self::Dorian,
+            0x0A => Self::Dorian5th,
+            _e => {
+                if cfg!(feature = "strict") {
+                    bail!(err_invalid!("unknown transposition table"));
+                } else {
+                    Self::default()
+                }
+            }
+        })
     }
 }
 
@@ -556,6 +608,13 @@ impl<'a> TryFrom<(&'a [u8], Version)> for Table {
         let note_range_high = u7::from(value[4]);
         let retrigger_rule = RetriggerRule::try_from(value[5])?;
 
-        Ok(Table { ntr, ntt, bass_on, high_key, note_range: (note_range_low, note_range_high), retrigger_rule, })
+        Ok(Table {
+            ntr,
+            ntt,
+            bass_on,
+            high_key,
+            note_range: (note_range_low, note_range_high),
+            retrigger_rule,
+        })
     }
 }
