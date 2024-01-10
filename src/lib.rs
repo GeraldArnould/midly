@@ -210,31 +210,36 @@ mod prelude {
 }
 
 mod arena;
+mod casm;
+mod ctab;
 mod event;
 pub mod io;
 pub mod live;
+mod mdb;
+mod mh;
+mod ots;
 mod primitive;
 mod riff;
 mod smf;
 pub mod stream;
-mod casm;
-mod ctab;
-mod ots;
-mod mdb;
-mod mh;
 
+#[cfg(feature = "styles")]
+pub use crate::smf::parse_style;
 #[cfg(feature = "std")]
 pub use crate::smf::write_std;
+#[cfg(feature = "styles")]
+#[cfg(feature = "alloc")]
+pub use crate::smf::Sff;
 #[cfg(feature = "alloc")]
 pub use crate::{
     arena::Arena,
-    smf::{BytemappedTrack, Smf, SmfBytemap, Track, Sff},
+    smf::{BytemappedTrack, Smf, SmfBytemap, Track},
 };
 pub use crate::{
     error::{Error, ErrorKind, Result},
     event::{MetaMessage, MidiMessage, PitchBend, TrackEvent, TrackEventKind},
     primitive::{Format, Fps, SmpteTime, Timing},
-    smf::{parse, write, parse_style, EventBytemapIter, EventIter, Header, TrackIter},
+    smf::{parse, write, EventBytemapIter, EventIter, Header, TrackIter},
 };
 
 /// Exotically-sized integers used by the MIDI standard.

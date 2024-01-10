@@ -253,6 +253,7 @@ impl<'a> SmfBytemap<'a> {
 /// This is the recommended order for the sections, but some files may present the optional sections in a
 /// different order.
 #[cfg(feature = "alloc")]
+#[cfg(feature = "styles")]
 pub struct Sff<'a> {
     /// Header of the Midi section
     pub header: Header,
@@ -269,6 +270,7 @@ pub struct Sff<'a> {
 }
 
 #[cfg(feature = "alloc")]
+#[cfg(feature = "styles")]
 impl<'a> Sff<'a> {
     /// Parse raw bytes and returns a Style structure if the parsing was successful
     pub fn parse(raw: &'a [u8]) -> Result<Sff> {
@@ -335,6 +337,7 @@ pub fn parse(raw: &[u8]) -> Result<(Header, TrackIter)> {
 /// Oldest SFF1 style files are converted to the new SFF2 structure. This conversion is reversible.
 /// However SFF2 styles cannot be converted to SFF1 without loss of information.
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "styles")]
 pub fn parse_style(
     raw: &[u8],
 ) -> Result<(
