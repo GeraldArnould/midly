@@ -15,7 +15,7 @@ categories = ["multimedia::audio", "multimedia::encoding", "multimedia"]
 license = "Unlicense"
 
 [features]
-default = ["alloc", "std", "parallel"]
+default = ["alloc", "std", "parallel", "styles"]
 
 # Reject corrupted or uncompliant files, even if they could be read anyway.
 #
@@ -28,6 +28,11 @@ strict = []
 # the crate fully `no_std`.
 # If this feature is enabled, but the `std` feature is not, the crate becomes `no_std + alloc`.
 alloc = []
+
+# Enable the `styles` dependency.
+#
+# Allow parsing Yamaha Style files.
+styles = []
 
 # Integrate with the `std` library.
 # Depends on the `alloc` feature.
