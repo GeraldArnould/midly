@@ -197,15 +197,7 @@ mod parse_lazy_style {
     impl Sff<'_> {
         pub fn parse(raw: &[u8]) -> MidlyResult<Sff> {
             let (header, tracks, casm, ots, mdb, mh) = crate::parse_style(raw)?;
-            let music_finder = mdb.unwrap().0;
-            let cseg_iter = casm.unwrap().0;
-            for cseg in cseg_iter {
-                println!("cseg: {:?}", cseg.unwrap());
-            }
-            for record in music_finder {
-                println!("mdb: {:?}", record.unwrap());
-            }
-            Ok(Sff { header, tracks, casm: None, ots, mdb: None, mh })
+            Ok(Sff { header, tracks, casm, ots, mdb, mh })
         }
     }
     pub fn len(_raw: &[u8], track: MidlyResult<EventIter>) -> usize {
