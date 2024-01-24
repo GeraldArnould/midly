@@ -1,7 +1,7 @@
 use crate::smf::{Chunk, ChunkIter};
 use crate::{prelude::*, TrackIter};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ots<'a>(pub TrackIter<'a>);
 
 impl<'a> Ots<'a> {

@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use crate::smf::{Chunk, ChunkIter};
 
+#[derive(Clone, Debug)]
 pub struct Mh<'a>(&'a [u8]);
 
 impl<'a> Mh<'a> {

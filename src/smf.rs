@@ -254,6 +254,7 @@ impl<'a> SmfBytemap<'a> {
 /// different order.
 #[cfg(feature = "alloc")]
 #[cfg(feature = "styles")]
+#[derive(Clone, Debug)]
 pub struct Sff<'a> {
     /// Header of the Midi section
     pub header: Header,

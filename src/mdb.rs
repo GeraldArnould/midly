@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::smf::{Chunk, ChunkIter};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mdb<'a>(pub(crate) RecordIter<'a>);
 
 impl<'a> Mdb<'a> {
@@ -104,7 +104,7 @@ impl Record {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct RecordIter<'a> {
     inner: ChunkIter<'a>,
 }

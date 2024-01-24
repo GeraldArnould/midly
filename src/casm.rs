@@ -3,6 +3,7 @@ use crate::prelude::*;
 use crate::smf::{Chunk, ChunkIter};
 use crate::Error;
 
+#[derive(Clone, Debug)]
 pub struct Casm<'a>(pub(crate) CsegIter<'a>);
 
 impl<'a> Casm<'a> {
@@ -73,6 +74,7 @@ impl<'a> Cseg<'a> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub(crate) struct CsegIter<'a> {
     inner: ChunkIter<'a>,
 }
