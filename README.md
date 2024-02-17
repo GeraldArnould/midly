@@ -83,3 +83,7 @@ The above results are only referential, actual performance depends wildly on the
 system.
 The benchmarks were done on a Linux x64 machine with a warm file cache.
 The benchmark code is available in the `/benchmark` directory in the source.
+
+## Contributing
+
+Simply fork the repository and open a pull request or open an issue.
