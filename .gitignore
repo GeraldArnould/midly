@@ -1,3 +1,6 @@
 target
 **/*.rs.bk
 Cargo.lock
+
+# Copyrighted test files (Yamaha styles): kept locally, never committed
+test-asset/private/

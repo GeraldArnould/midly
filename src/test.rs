@@ -50,6 +50,10 @@ macro_rules! open_style {
 /// Macro for parsing a Style file.
 macro_rules! test_style {
     {$file:expr => $parse_method:ident} => {{
+        if !AsRef::<Path>::as_ref("test-asset").join($file).exists() {
+            eprintln!("skipped: test-asset/{} not found (copyrighted style files are kept out of the repository)", $file);
+            return;
+        }
         let counts = time(&$file.to_string(), ||->Vec<_> {
             open_style!{file: $file};
             open_style!{sff: [$parse_method] file};
@@ -611,10 +615,61 @@ mod parse {
 
     def_tests_style! {
         #[test]
-        fn sff1() {"sff1.prs"}
+        fn sff1() {"private/sff1.prs"}
 
         #[test]
-        fn sff2() {"sff2.prs"}
+        fn sff2() {"private/sff2.prs"}
+    }
+
+    /// A style file built here byte by byte: a MIDI header and track, then a CASM section with one
+    /// CSEG holding section names, an SFF2 channel table (Ctb2), an SFF1 one (Ctab) and a Cntt.
+    fn synthetic_style() -> Vec<u8> {
+        fn chunk(id: &[u8; 4], data: &[u8]) -> Vec<u8> {
+            let mut out = id.to_vec();
+            out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+            out.extend_from_slice(data);
+            out
+        }
+        // source channel, name (8 bytes), destination channel, editable, note mute (2), chord mute (5),
+        // source chord (C), its type (Maj)
+        let common = |name: &[u8; 8]| -> Vec<u8> {
+            let mut v = vec![9];
+            v.extend_from_slice(name);
+            v.extend_from_slice(&[9, 0, 0x0F, 0xFF, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00]);
+            v
+        };
+        // a transposition table: rule, table, high key (G), note range 36-84, retrigger rule
+        let table: [u8; 6] = [0x00, 0x00, 0x07, 36, 84, 0x01];
+        let mut ctb2 = common(b"Piano   ");
+        ctb2.extend_from_slice(&[0, 127]); // note range of the channel
+        for _ in 0..3 {
+            ctb2.extend_from_slice(&table); // low, main and high chord roots
+        }
+        ctb2.extend_from_slice(&[0; 7]); // special bytes
+        let mut ctab = common(b"Bass    ");
+        ctab.extend_from_slice(&table);
+        ctab.push(0x00); // no special bytes
+        let mut cseg = chunk(b"Sdec", b"Main A,Main B");
+        cseg.extend(chunk(b"Ctb2", &ctb2));
+        cseg.extend(chunk(b"Ctab", &ctab));
+        cseg.extend(chunk(b"Cntt", &[9, 0x80]));
+        let mut file = chunk(b"MThd", &[0, 0, 0, 1, 0x01, 0xE0]);
+        file.extend(chunk(b"MTrk", &[0x00, 0xFF, 0x2F, 0x00]));
+        file.extend(chunk(b"CASM", &chunk(b"CSEG", &cseg)));
+        file
+    }
+
+    #[test]
+    fn synthetic() {
+        let file = synthetic_style();
+        let sff = crate::Sff::parse(&file).expect("synthetic style should parse");
+        assert_eq!(sff.tracks.len(), 1);
+        let csegs: Vec<_> = sff.casm.expect("a CASM section").0.collect();
+        assert_eq!(csegs.len(), 1, "one CSEG, read without error");
+        let cseg = format!("{:?}", csegs[0].as_ref().expect("a valid CSEG"));
+        for expected in ["MainA", "MainB", "\"Piano\"", "\"Bass\"", "PitchShift", "high_key: G"] {
+            assert!(cseg.contains(expected), "{} not in {}", expected, cseg);
+        }
     }
 
     #[test]
